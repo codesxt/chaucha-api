@@ -1,5 +1,6 @@
 const graphql_client = require('graphql-request');
 const express    = require('express');
+const LinearRegression = require('shaman').LinearRegression;
 
 const query = `{
   marketOrderBook(marketCode:"CHACLP" limit:1){
@@ -19,11 +20,71 @@ const query = `{
   }
 }`;
 
+const historyQuery = `{
+  marketStats(marketCode:"CHACLP" aggregation:m1) {
+    _id
+    open
+    close
+    high
+    low
+    variation
+    average
+    volume
+    volumeSecondary
+    count
+    fromDate
+    toDate
+  }
+}`;
+
+var tendency = 0;
+
 graphql_client.request(
   'http://api.orionx.io/graphql', query
 ).then(
-  data => console.log(JSON.stringify(data, null, '\t'))
+  data => {
+    //console.log(JSON.stringify(data, null, '\t'))
+  }
 )
+
+
+var updateTendency = () => {
+  graphql_client.request(
+    'http://api.orionx.io/graphql', historyQuery
+  ).then(
+    data => {
+      //console.log(JSON.stringify(data, null, '\t'));
+      //console.log(data.marketStats.length);
+      let prices = [];
+      let priceSum = 0;
+      let count = 0;
+      data.marketStats.forEach((item) => {
+        prices.push(item.average);
+        if(item.average!=null){
+          priceSum += item.average;
+          count++;
+        }
+      });
+      let avgPrice = Math.round(priceSum / count);
+      let fixedPrices = [];
+      let indices     = [];
+      prices.forEach((item, index) => {
+        indices.push(index);
+        if(item){
+          fixedPrices.push(item);
+        }else{
+          fixedPrices.push(avgPrice);
+        }
+      });
+      var lr = new LinearRegression(indices,fixedPrices);
+      lr.train(function(err) {
+        if (err) { throw err; }
+        tendency = lr.theta.elements[1][0];
+        console.log("["+new Date()+"] Tendency updated at: " + tendency);
+      });
+    }
+  )
+}
 
 var app        = express();
 var router     = express.Router();
@@ -62,7 +123,18 @@ router.get('/v1/prices', function(req, res) {
   )
 });
 
+router.get('/v1/tendency', function(req, res) {
+  res.json({
+    tendency: tendency
+  });
+});
+
+updateTendency();
+setInterval(() => {
+  updateTendency();
+}, 1000*60*1);
+
 app.use('/api', router);
 
 app.listen(port);
-console.log('Magic happens on port ' + port);
+console.log('Server is running on port: ' + port);
