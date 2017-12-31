@@ -132,7 +132,7 @@ router.get('/v1/tendency', function(req, res) {
 updateTendency();
 setInterval(() => {
   updateTendency();
-}, 1000*60*1);
+}, 1000*60*5);
 
 app.use('/api', router);
 
