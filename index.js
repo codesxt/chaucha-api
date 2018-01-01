@@ -69,11 +69,9 @@ var updateTendency = () => {
       let fixedPrices = [];
       let indices     = [];
       prices.forEach((item, index) => {
-        indices.push(index);
         if(item){
           fixedPrices.push(item);
-        }else{
-          fixedPrices.push(avgPrice);
+          indices.push(index);
         }
       });
       var lr = new LinearRegression(indices,fixedPrices);
